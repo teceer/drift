@@ -38,12 +38,20 @@ Nie są importowane: hasła, rozszerzenia, Boosts, Easels.
 | Skrót | Akcja |
 |---|---|
 | ⌘T / ⌘L | Nowa karta / edycja adresu (paleta z podpowiedziami) |
-| ⌘W / ⌘⇧T | Zamknij kartę (Today → archiwum) / przywróć |
+| ⌘⇧N | Nowa karta incognito (osobna sesja w pamięci, bez historii i archiwum) |
+| ⌘W / ⌘⇧T | Zamknij kartę (Today → archiwum, wraca do poprzedniej karty) / przywróć |
+| ⌘⇧K | Duplikuj kartę |
+| ⌘1…⌘8 / ⌘9 | N-ta / ostatnia karta (Essentials → przypięte → Today) |
+| ⌃Tab / ⌃⇧Tab, ⌘⌥↓ / ⌘⌥↑, ⌘⇧] / ⌘⇧[ | Następna / poprzednia karta |
 | ⌘S | Pokaż/ukryj sidebar (w trybie ukrytym wysuwa się przy lewej krawędzi) |
 | ⌘D | Przypnij / odepnij |
 | ⌘⇧C | Kopiuj URL |
+| ⌘F / ⌘G / ⌘⇧G | Szukaj na stronie / następne / poprzednie |
+| ⌘R / ⌘⇧R / ⌘. | Odśwież / bez cache / zatrzymaj |
+| ⌘[ / ⌘] | Wstecz / dalej |
+| ⌘P / ⌘⌥U | Drukuj / źródło strony |
+| ⌘⌥N / ⌘⌃N | Nowy folder / nowy workspace |
 | Ctrl+1…9, ⌘⌥←/→, swipe dwoma palcami | Przełączanie workspace'ów |
-| ⌘[ / ⌘] / ⌘R | Wstecz / dalej / odśwież |
 
 ## Architektura
 

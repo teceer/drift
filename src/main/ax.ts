@@ -29,10 +29,10 @@ const MAX_LINES = 400
 const refs = new WeakMap<WebContents, Map<number, number>>()
 
 async function cdp<T = Record<string, unknown>>(wc: WebContents, method: string, params: object = {}): Promise<T> {
+  if (wc.isDestroyed()) throw new Error('Karta została zamknięta')
   const dbg = wc.debugger
   if (!dbg.isAttached()) {
     dbg.attach('1.3')
-    wc.once('destroyed', () => dbg.isAttached() && dbg.detach())
   }
   return (await dbg.sendCommand(method, params)) as T
 }

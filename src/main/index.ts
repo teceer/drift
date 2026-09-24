@@ -29,6 +29,14 @@ async function acquireInstanceLock(): Promise<boolean> {
 
 // Watchers and scripts stop us with SIGTERM; quit properly so state gets flushed
 process.on('SIGTERM', () => app.quit())
+// Same for synchronous throws in event handlers: log instead of Electron's modal error dialog
+process.on('uncaughtException', (err) => {
+  console.error('Nieobsłużony wyjątek:', err)
+  try {
+    layout()
+    push()
+  } catch {}
+})
 // A failing handler must not leave the window half-updated: log, then re-sync the UI
 process.on('unhandledRejection', (err) => {
   console.error('Nieobsłużony błąd:', err)
@@ -171,7 +179,7 @@ function push(): void {
 
 function normaliseInput(input: string): string {
   const text = input.trim()
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text) || /^(about|data|file|chrome):/i.test(text)) return text
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text) || /^(about|data|file|chrome|view-source):/i.test(text)) return text
   if (/^localhost(:\d+)?(\/|$)/.test(text) || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(text)) return `http://${text}`
   if (!/\s/.test(text) && /^[^/]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(text)) return `https://${text}`
   return store.state.settings.searchUrl.replace('%s', encodeURIComponent(text))
@@ -189,9 +197,9 @@ function openItem(id: ItemId): void {
   tabs.show(id)
 }
 
-function newTab(input: string, workspace: Workspace = store.activeWorkspace, focus = true): ItemId {
+function newTab(input: string, workspace: Workspace = store.activeWorkspace, focus = true, incognito = false): ItemId {
   const url = normaliseInput(input)
-  const item = store.createTab(url, url, workspace)
+  const item = store.createTab(url, url, workspace, incognito)
   if (focus) openItem(item.id)
   return item.id
 }
@@ -201,9 +209,14 @@ function closeItem(id: ItemId): void {
   const ws = store.activeWorkspace
   const wasActive = store.state.activeItemByWorkspace[ws.id] === id
   let next: ItemId | null = null
-  if (wasActive && store.isToday(id)) {
-    const i = ws.today.indexOf(id)
-    next = ws.today[i + 1] ?? ws.today[i - 1] ?? null
+  if (wasActive) {
+    // Like Chrome/Arc: go back to the tab used before this one, else a neighbour in Today
+    const prev = store.previousActive[ws.id]
+    if (prev && prev !== id && store.state.items[prev]) next = prev
+    else if (store.isToday(id)) {
+      const i = ws.today.indexOf(id)
+      next = ws.today[i + 1] ?? ws.today[i - 1] ?? null
+    }
   }
   tabs.close(id)
   if (store.isToday(id)) store.archive(id)
@@ -235,6 +248,39 @@ function cycleWorkspace(delta: number): void {
   const list = store.state.workspaces
   const i = list.findIndex((w) => w.id === store.state.activeWorkspaceId)
   switchWorkspace(list[(i + delta + list.length) % list.length].id)
+}
+
+/** Sidebar order used by ⌘1…9 and next/previous tab: Essentials, pinned (expanded folders), Today */
+function tabOrder(): ItemId[] {
+  const s = store.state
+  const ws = store.activeWorkspace
+  const flatten = (ids: ItemId[]): ItemId[] =>
+    ids.flatMap((id) => {
+      const it = s.items[id]
+      if (!it) return []
+      if (it.kind === 'folder') return it.collapsed ? [] : flatten(it.children ?? [])
+      return [id]
+    })
+  return [...flatten(s.essentials[ws.profileId] ?? []), ...flatten(ws.pinned), ...ws.today.filter((id) => s.items[id])]
+}
+
+function selectTabAt(index: number): void {
+  const order = tabOrder()
+  const id = index < 0 ? order[order.length - 1] : order[index]
+  if (id) openItem(id)
+}
+
+function cycleTab(delta: number): void {
+  const order = tabOrder()
+  if (!order.length) return
+  const i = order.indexOf(activeItemId() ?? '')
+  openItem(order[(i + delta + order.length) % order.length])
+}
+
+function duplicateTab(): void {
+  const id = activeItemId()
+  const url = id ? (tabs.runtime()[id]?.url ?? store.state.items[id]?.url) : undefined
+  if (url) newTab(url, store.activeWorkspace, true, !!store.state.items[id!]?.incognito)
 }
 
 function togglePin(id: ItemId): void {
@@ -462,7 +508,7 @@ function registerIpc(): void {
   }
   on('snapshot', () => ({ state: store.state, tabs: tabs.runtime(), mode, hasPage: !!tabs.activeView }) satisfies Snapshot)
   on('open-item', (id: ItemId) => openItem(id))
-  on('new-tab', (input: string) => newTab(input))
+  on('new-tab', (input: string, opts?: { incognito?: boolean }) => newTab(input, store.activeWorkspace, true, !!opts?.incognito))
   on('navigate', (input: string, force = false) => {
     const id = activeItemId()
     if (id) tabs.navigate(id, normaliseInput(input), force)
@@ -609,6 +655,7 @@ function createWindow(): void {
     onChange: push,
     layout,
     openInNewTab: (url, background) => newTab(url, store.activeWorkspace, !background),
+    openIncognito: (url) => newTab(url, store.activeWorkspace, true, true),
     htmlFullscreen: (on) => {
       htmlFullscreen = on
       if (on && !win.isFullScreen()) {
@@ -683,6 +730,16 @@ function createWindow(): void {
         app.setAsDefaultProtocolClient('https')
       },
       newFolder: () => store.createFolder(),
+      newIncognito: () => chrome.webContents.send('command', { type: 'palette', mode: 'incognito' }),
+      tabAt: selectTabAt,
+      cycleTab,
+      duplicateTab,
+      stop: () => tabs.webContents()?.stop(),
+      print: () => tabs.webContents()?.print(),
+      viewSource: () => {
+        const url = tabs.webContents()?.getURL()
+        if (url && /^https?:/.test(url)) newTab(`view-source:${url}`)
+      },
       newWorkspace
     })
   )

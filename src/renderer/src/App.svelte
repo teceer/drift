@@ -4,7 +4,7 @@
   import Palette from './components/Palette.svelte'
   import Sidebar from './components/Sidebar.svelte'
 
-  let palette = $state<'new' | 'edit' | null>(null)
+  let palette = $state<'new' | 'edit' | 'incognito' | null>(null)
   let renaming = $state<string | null>(null)
   let editingWorkspace = $state<string | null>(null)
   let hideTimer: ReturnType<typeof setTimeout> | undefined
@@ -16,7 +16,7 @@
     app.snap = s
   })
   window.drift.onCommand((cmd) => {
-    if (cmd.type === 'palette') openPalette(cmd.mode as 'new' | 'edit')
+    if (cmd.type === 'palette') openPalette(cmd.mode as 'new' | 'edit' | 'incognito')
     if (cmd.type === 'rename') {
       renaming = cmd.id
       if (app.snap?.state.settings.compact) peek()
@@ -25,7 +25,7 @@
     if (cmd.type === 'peek' && app.snap?.state.settings.compact) peek()
   })
 
-  async function openPalette(mode: 'new' | 'edit'): Promise<void> {
+  async function openPalette(mode: 'new' | 'edit' | 'incognito'): Promise<void> {
     // The palette covers the window; after it the overlay starts closed again
     peekOpen = false
     await actions.palette(true)

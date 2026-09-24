@@ -3,6 +3,7 @@ import { clipboard, Menu, type BaseWindow, type ContextMenuParams, type MenuItem
 export interface PageMenuDeps {
   win: BaseWindow
   openTab: (url: string, background: boolean) => void
+  openIncognito: (url: string) => void
   searchUrl: string
 }
 
@@ -24,6 +25,7 @@ export function showPageMenu(wc: WebContents, p: ContextMenuParams, deps: PageMe
     items.push(
       { label: 'Otwórz link w nowej karcie', click: () => deps.openTab(p.linkURL, true) },
       { label: 'Otwórz link i przejdź do karty', click: () => deps.openTab(p.linkURL, false) },
+      { label: 'Otwórz link w karcie incognito', click: () => deps.openIncognito(p.linkURL) },
       { label: 'Kopiuj adres linku', click: () => clipboard.writeText(p.linkURL) }
     )
     sep()

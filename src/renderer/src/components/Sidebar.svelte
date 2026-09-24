@@ -15,7 +15,7 @@
     snap: Snapshot
     renaming: string | null
     editingWorkspace: string | null
-    onpalette: (mode: 'new' | 'edit') => void
+    onpalette: (mode: 'new' | 'edit' | 'incognito') => void
   } = $props()
 
   const ws = $derived(workspace(snap))

@@ -68,6 +68,7 @@
   <div
     class="row"
     class:active
+    class:incognito={item.incognito}
     class:folder={item.kind === 'folder'}
     class:dim={item.kind === 'tab' && !loaded && !today}
     class:drop-before={dropPos === 'before'}
@@ -119,6 +120,7 @@
       <span class="title">{displayTitle(item, rt, today)}</span>
     {/if}
 
+    {#if item.incognito}<span class="private" title="Incognito">🕶</span>{/if}
     {#if rt?.audible}<span class="audio"><Icon name="speaker" size={14} /></span>{/if}
 
     {#if item.kind === 'tab' && (today || loaded)}
@@ -163,6 +165,9 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   }
   .row.dim .title { opacity: 0.72; }
+  .row.incognito { background: rgba(140, 100, 255, 0.1); }
+  .row.incognito.active { background: rgba(140, 100, 255, 0.24); }
+  .private { font-size: 12px; opacity: 0.8; }
   .folder .title { font-weight: 600; }
   .icon {
     flex: none;

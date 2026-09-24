@@ -3,7 +3,7 @@
   import { actions, activeId, hostOf, ui } from '../lib/api.svelte'
   import Favicon from './Favicon.svelte'
 
-  let { snap, mode, onclose }: { snap: Snapshot; mode: 'new' | 'edit'; onclose: () => void } = $props()
+  let { snap, mode, onclose }: { snap: Snapshot; mode: 'new' | 'edit' | 'incognito'; onclose: () => void } = $props()
 
   type Suggestion = Awaited<ReturnType<typeof actions.suggest>>[number]
 
@@ -34,12 +34,13 @@
   })
 
   function go(s?: Suggestion): void {
-    if (s?.kind === 'tab' && s.id) actions.open(s.id)
+    // In incognito mode even known pages open as a fresh private tab
+    if (s?.kind === 'tab' && s.id && mode !== 'incognito') actions.open(s.id)
     else {
       const target = s?.url ?? query.trim()
       if (!target) return
       if (mode === 'edit' && current) actions.navigate(target)
-      else actions.newTab(target)
+      else actions.newTab(target, { incognito: mode === 'incognito' })
     }
     onclose()
   }
@@ -65,12 +66,13 @@
 </script>
 
 <div class="backdrop" role="presentation" onmousedown={onclose}>
-  <div class="palette" role="dialog" tabindex="-1" onmousedown={(e) => e.stopPropagation()}>
+  <div class="palette" class:incognito={mode === 'incognito'} role="dialog" tabindex="-1" onmousedown={(e) => e.stopPropagation()}>
+    {#if mode === 'incognito'}<div class="incognito-badge">🕶 Karta incognito — bez historii, osobna sesja</div>{/if}
     <input
       bind:value={query}
       use:autofocus
       onkeydown={onKey}
-      placeholder={mode === 'new' ? 'Szukaj lub wpisz adres…' : 'Adres'}
+      placeholder={mode === 'edit' ? 'Adres' : mode === 'incognito' ? 'Szukaj lub wpisz adres (incognito)…' : 'Szukaj lub wpisz adres…'}
       spellcheck="false"
     />
     {#if query.trim()}
@@ -112,6 +114,8 @@
     overflow: hidden;
     color: #f0f0f2;
   }
+  .palette.incognito { background: rgba(24, 20, 36, 0.98); border-color: rgba(160, 120, 255, 0.35); }
+  .incognito-badge { padding: 10px 18px 0; font-size: 12px; color: #b9a4ff; }
   input {
     width: 100%;
     height: 54px;

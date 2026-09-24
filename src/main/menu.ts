@@ -19,6 +19,13 @@ export interface MenuActions {
   devtoolsChrome: () => void
   newFolder: () => void
   newWorkspace: () => void
+  newIncognito: () => void
+  tabAt: (index: number) => void
+  cycleTab: (delta: number) => void
+  duplicateTab: () => void
+  stop: () => void
+  print: () => void
+  viewSource: () => void
   find: () => void
   findNext: () => void
   findPrev: () => void
@@ -52,11 +59,15 @@ export function buildMenu(a: MenuActions): Menu {
       label: 'Plik',
       submenu: [
         { label: 'Nowa karta', accelerator: 'Cmd+T', click: a.newTab },
-        { label: 'Nowy folder', accelerator: 'Cmd+Shift+N', click: a.newFolder },
+        { label: 'Nowa karta incognito', accelerator: 'Cmd+Shift+N', click: a.newIncognito },
+        { label: 'Duplikuj kartę', accelerator: 'Cmd+Shift+K', click: a.duplicateTab },
+        { label: 'Nowy folder', accelerator: 'Cmd+Alt+N', click: a.newFolder },
         { label: 'Nowy workspace', accelerator: 'Cmd+Ctrl+N', click: a.newWorkspace },
         { type: 'separator' },
         { label: 'Zamknij kartę', accelerator: 'Cmd+W', click: a.closeTab },
-        { label: 'Przywróć zamkniętą kartę', accelerator: 'Cmd+Shift+T', click: a.reopen }
+        { label: 'Przywróć zamkniętą kartę', accelerator: 'Cmd+Shift+T', click: a.reopen },
+        { type: 'separator' },
+        { label: 'Drukuj…', accelerator: 'Cmd+P', click: a.print }
       ]
     },
     {
@@ -86,6 +97,8 @@ export function buildMenu(a: MenuActions): Menu {
         { type: 'separator' },
         { label: 'Odśwież', accelerator: 'Cmd+R', click: a.reload },
         { label: 'Odśwież bez cache', accelerator: 'Cmd+Shift+R', click: a.hardReload },
+        { label: 'Zatrzymaj', accelerator: 'Cmd+.', click: a.stop },
+        { label: 'Źródło strony', accelerator: 'Cmd+Alt+U', click: a.viewSource },
         { type: 'separator' },
         { label: 'Powiększ', accelerator: 'Cmd+=', click: () => a.zoom(1) },
         { label: 'Pomniejsz', accelerator: 'Cmd+-', click: () => a.zoom(-1) },
@@ -101,7 +114,17 @@ export function buildMenu(a: MenuActions): Menu {
       submenu: [
         { label: 'Wstecz', accelerator: 'Cmd+[', click: a.back },
         { label: 'Dalej', accelerator: 'Cmd+]', click: a.forward },
-        { label: 'Przypnij / odepnij', accelerator: 'Cmd+D', click: a.togglePin }
+        { label: 'Przypnij / odepnij', accelerator: 'Cmd+D', click: a.togglePin },
+        { type: 'separator' },
+        { label: 'Następna karta', accelerator: 'Ctrl+Tab', click: () => a.cycleTab(1) },
+        { label: 'Poprzednia karta', accelerator: 'Ctrl+Shift+Tab', click: () => a.cycleTab(-1) },
+        { label: 'Następna karta ', accelerator: 'Cmd+Alt+Down', click: () => a.cycleTab(1), visible: false },
+        { label: 'Poprzednia karta ', accelerator: 'Cmd+Alt+Up', click: () => a.cycleTab(-1), visible: false },
+        { label: 'Następna karta  ', accelerator: 'Cmd+Shift+]', click: () => a.cycleTab(1), visible: false },
+        { label: 'Poprzednia karta  ', accelerator: 'Cmd+Shift+[', click: () => a.cycleTab(-1), visible: false },
+        { type: 'separator' },
+        ...Array.from({ length: 8 }, (_, i) => ({ label: `Karta ${i + 1}`, accelerator: `Cmd+${i + 1}`, click: () => a.tabAt(i) })),
+        { label: 'Ostatnia karta', accelerator: 'Cmd+9', click: () => a.tabAt(-1) }
       ]
     },
     {
