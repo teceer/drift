@@ -126,7 +126,7 @@
     {#if item.kind === 'tab' && (today || loaded)}
       <button
         class="close"
-        title={today ? 'Zamknij' : 'Wyładuj'}
+        title={today ? 'Close' : 'Unload'}
         onclick={(e) => {
           e.stopPropagation()
           actions.close(id)
@@ -142,7 +142,7 @@
       <Self {snap} id={child} zone="folder" parentId={id} index={i} depth={depth + 1} bind:renaming />
     {/each}
     {#if !item.children?.length}
-      <div class="empty" style="padding-left:{34 + depth * 14}px">Pusty folder</div>
+      <div class="empty" style="padding-left:{34 + depth * 14}px">Empty folder</div>
     {/if}
   {/if}
 {/if}

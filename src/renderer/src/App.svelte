@@ -134,10 +134,10 @@
         <div class="empty-card">
           <div class="empty-emoji">{ws.emoji ?? '✨'}</div>
           <div class="empty-title">{ws.name}</div>
-          <div class="empty-sub">Brak otwartej karty w tym workspace</div>
+          <div class="empty-sub">No open tab in this workspace</div>
           <div class="empty-actions">
-            <button onclick={() => openPalette('new')}>Nowa karta <kbd>⌘T</kbd></button>
-            {#if overlay}<button onclick={actions.toggleCompact}>Pokaż sidebar <kbd>⌘S</kbd></button>{/if}
+            <button onclick={() => openPalette('new')}>New tab <kbd>⌘T</kbd></button>
+            {#if overlay}<button onclick={actions.toggleCompact}>Show sidebar <kbd>⌘S</kbd></button>{/if}
           </div>
         </div>
       </div>

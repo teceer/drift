@@ -227,11 +227,11 @@ export class TabManager {
       }
       const choice = dialog.showMessageBoxSync(this.win, {
         type: 'question',
-        buttons: ['Zostań', 'Opuść stronę'],
+        buttons: ['Stay', 'Leave page'],
         defaultId: 0,
         cancelId: 0,
-        message: 'Opuścić tę stronę?',
-        detail: 'Wprowadzone zmiany mogą nie zostać zapisane.'
+        message: 'Leave this page?',
+        detail: 'Changes you made may not be saved.'
       })
       if (choice === 1) e.preventDefault()
     })

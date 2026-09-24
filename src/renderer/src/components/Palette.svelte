@@ -67,12 +67,12 @@
 
 <div class="backdrop" role="presentation" onmousedown={onclose}>
   <div class="palette" class:incognito={mode === 'incognito'} role="dialog" tabindex="-1" onmousedown={(e) => e.stopPropagation()}>
-    {#if mode === 'incognito'}<div class="incognito-badge">🕶 Karta incognito — bez historii, osobna sesja</div>{/if}
+    {#if mode === 'incognito'}<div class="incognito-badge">🕶 Incognito tab — no history, separate session</div>{/if}
     <input
       bind:value={query}
       use:autofocus
       onkeydown={onKey}
-      placeholder={mode === 'edit' ? 'Adres' : mode === 'incognito' ? 'Szukaj lub wpisz adres (incognito)…' : 'Szukaj lub wpisz adres…'}
+      placeholder={mode === 'edit' ? 'Address' : mode === 'incognito' ? 'Search or enter address (incognito)…' : 'Search or enter address…'}
       spellcheck="false"
     />
     {#if query.trim()}
@@ -80,13 +80,13 @@
         <button class="res" class:sel={selected === 0} onmouseenter={() => (selected = 0)} onclick={() => go()}>
           <span class="kind">↵</span>
           <span class="t">{query}</span>
-          <span class="u">{looksLikeUrl ? 'Otwórz' : 'Szukaj w Google'}</span>
+          <span class="u">{looksLikeUrl ? 'Open' : 'Search on Google'}</span>
         </button>
         {#each results as r, i}
           <button class="res" class:sel={selected === i + 1} onmouseenter={() => (selected = i + 1)} onclick={() => go(r)}>
             <Favicon src={r.favicon ?? `https://www.google.com/s2/favicons?domain=${hostOf(r.url)}&sz=64`} label={r.title} />
             <span class="t">{r.title}</span>
-            <span class="u">{r.kind === 'tab' ? 'Przełącz na kartę' : hostOf(r.url)}</span>
+            <span class="u">{r.kind === 'tab' ? 'Switch to tab' : hostOf(r.url)}</span>
           </button>
         {/each}
       </div>

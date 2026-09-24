@@ -45,7 +45,7 @@ function readJson<T>(path: string): T | null {
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as T
   } catch (err) {
-    console.error(`Nie udało się odczytać ${path}:`, err)
+    console.error(`Failed to read ${path}:`, err)
     return null
   }
 }
@@ -177,7 +177,7 @@ export class Store {
     return item
   }
 
-  createFolder(title = 'Nowy folder', target?: DropTarget): Item {
+  createFolder(title = 'New folder', target?: DropTarget): Item {
     const item: Item = { id: randomUUID(), kind: 'folder', title, children: [], createdAt: Date.now() }
     this.state.items[item.id] = item
     this.insert(item.id, target ?? { zone: 'pinned', index: 0 })
