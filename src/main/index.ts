@@ -11,6 +11,9 @@ import { TabManager } from './tabs'
 const GAP = 8
 const PEEK_SHADOW = 16
 
+// Stack traces point at src/… instead of line numbers in the bundle
+process.setSourceMapsEnabled(true)
+
 app.setName('Drift')
 nativeTheme.themeSource = 'dark'
 
@@ -131,7 +134,9 @@ function openFind(): void {
   findView.setBackgroundColor('#00000000')
   captureConsole(findView.webContents, 'find')
   loadRenderer(findView, 'find')
-  findView.webContents.once('did-finish-load', () => findView?.webContents.focus())
+  findView.webContents.once('did-finish-load', () => {
+    if (findView && !findView.webContents.isDestroyed()) findView.webContents.focus()
+  })
   layout()
 }
 
