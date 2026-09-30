@@ -74,6 +74,8 @@ export class TabManager {
       htmlFullscreen: (on: boolean) => void
       openIncognito: (url: string) => void
       onFound: (result: Electron.Result) => void
+      /** Runs right before a tab's first load (automation: network log) */
+      beforeLoad?: (wc: Electron.WebContents) => void
     }
   ) {
     setInterval(() => this.sleepIdle(), 60_000)
@@ -262,6 +264,7 @@ export class TabManager {
       return { action: 'deny' }
     })
 
+    this.hooks.beforeLoad?.(wc)
     wc.loadURL(url).catch(() => {})
     return view
   }

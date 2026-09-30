@@ -77,6 +77,8 @@ scripts/drift-ctl type sidebar github   # typing
 scripts/drift-ctl key sidebar Enter     # keys (--mod cmd,shift)
 scripts/drift-ctl text page             # text of the active page
 scripts/drift-ctl logs                  # sidebar console errors
+scripts/drift-ctl network --failed      # the tab's requests: method, status, time (--filter, --all)
+scripts/drift-ctl network --body 12     # request/response body of #12, secrets masked
 ```
 
 Pointing at elements (`<sel>`): `12` (ref from `tree`), `button Send` (role + accessible name), `Send` (name only), `css:.tile`, `text:Clear`. When nothing matches, the error (including a `wait el=` timeout) lists the most similar elements. The `~` prefix (`menuitem ~Speed`) accepts the only similar element when there is no exact match — the report marks this with `≈`. Text-field roles (`textbox`, `combobox`, `searchbox`) are interchangeable, and "1.5" == "1,5".
@@ -102,7 +104,7 @@ Narrowing: `--within <sel>` (only inside a container), `--near <sel>` (the eleme
 Every state-changing command reports on its own:
 - `Δ` — what changed in the status (mode, URL, palette, focus…),
 - `→ hit` — the element that actually received the click; an obscured or invisible target is blocked (`--force` forces it),
-- `✖` — new console errors and failed loads since the previous command,
+- `✖` — new console errors, failed loads and failed API calls (status ≥ 400 or a network error) since the previous command,
 - `⚠ Drift restarted` — when the instance changed between commands.
 
 From pages, only the address, title, loading state and errors are reported — content (`tree page`, `text page`) only on request.

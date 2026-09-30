@@ -68,7 +68,8 @@ const NOISE = /doubleclick|googleads|googlesyndication|google-analytics|googleta
 
 export function capturePageErrors(wc: WebContents): void {
   wc.on('console-message', (e) => {
-    if (e.level !== 'error' || NOISE.test(e.message)) return
+    // "Failed to load resource" is covered, with method and URL, by the network log
+    if (e.level !== 'error' || NOISE.test(e.message) || e.message.startsWith('Failed to load resource')) return
     const line = `[page ${hostOf(wc.getURL())}] ${e.message.replace(/\s+/g, ' ').slice(0, 160)}`
     // Same error in a loop (retries, polling) is reported once
     if (logs.slice(-20).some((l) => l.line.endsWith(line))) return
@@ -506,13 +507,157 @@ function parseCondition(raw: string): Condition {
 /** Last time each page started a network request (for the idle condition) */
 const lastRequest = new WeakMap<WebContents, number>()
 
-async function trackNetwork(wc: WebContents): Promise<void> {
-  if (lastRequest.has(wc)) return
+interface NetEntry {
+  id: number
+  requestId: string
+  at: string
+  /** CDP monotonic timestamp (s) of the request, for durations */
+  ts: number
+  method: string
+  url: string
+  type: string
+  status?: number
+  error?: string
+  ms?: number
+  size?: number
+  postData?: string
+  body?: string
+}
+
+const NET_LIMIT = 300
+/** Per-page ring buffer of requests, filled from tab creation so the agent sees what a click triggered */
+const net = new WeakMap<WebContents, NetEntry[]>()
+let netCounter = 0
+const tracked = new WeakSet<WebContents>()
+/** Static assets: hidden unless --all, never reported as errors */
+const ASSET_TYPES = new Set(['Image', 'Stylesheet', 'Font', 'Script', 'Media', 'Manifest', 'TextTrack', 'Ping', 'CSPViolationReport', 'Preflight', 'Prefetch', 'SignedExchange'])
+
+/** Masks 1Password values and password/token-like fields in request/response text */
+function scrub(text: string): string {
+  let out = text
+  for (const { value } of secretCache.values()) {
+    if (value.length < 4) continue
+    for (const v of new Set([value, encodeURIComponent(value), JSON.stringify(value).slice(1, -1)])) out = out.split(v).join('••••••')
+  }
+  return out.replace(/("?[\w-]*(?:pass(?:word)?|passwd|pwd|secret|token|otp|pin)[\w-]*"?\s*[:=]\s*"?)([^"&,}\s]+)/gi, '$1••••••')
+}
+
+async function responseBody(wc: WebContents, e: NetEntry): Promise<string> {
+  const r = await cdp<{ body: string; base64Encoded: boolean }>(wc, 'Network.getResponseBody', { requestId: e.requestId })
+  return r.base64Encoded ? `[binary, ${Math.round((r.body.length * 3) / 4)} bytes]` : r.body
+}
+
+/** Starts the request log (and idle tracking) for a page; call before its first load */
+export async function trackNetwork(wc: WebContents): Promise<void> {
+  if (tracked.has(wc) || wc.isDestroyed()) return
+  tracked.add(wc)
   lastRequest.set(wc, Date.now())
-  await cdp(wc, 'Network.enable')
-  wc.debugger.on('message', (_e, method) => {
-    if (method === 'Network.requestWillBeSent') lastRequest.set(wc, Date.now())
+  const list: NetEntry[] = []
+  net.set(wc, list)
+  const open = new Map<string, NetEntry>()
+  const finish = (e: NetEntry, ts: number): void => {
+    e.ms = Math.round((ts - e.ts) * 1000)
+    open.delete(e.requestId)
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wc.debugger.on('message', (_e, method, p: any) => {
+    if (method === 'Network.requestWillBeSent') {
+      lastRequest.set(wc, Date.now())
+      const prev = open.get(p.requestId)
+      if (prev && p.redirectResponse) {
+        prev.status = p.redirectResponse.status
+        finish(prev, p.timestamp)
+      }
+      const e: NetEntry = {
+        id: ++netCounter,
+        requestId: p.requestId,
+        at: new Date().toISOString().slice(11, 19),
+        ts: p.timestamp,
+        method: p.request.method,
+        url: p.request.url,
+        type: p.type ?? 'Other',
+        postData: p.request.postData
+      }
+      list.push(e)
+      if (list.length > NET_LIMIT) list.splice(0, list.length - NET_LIMIT)
+      open.set(p.requestId, e)
+    } else if (method === 'Network.responseReceived') {
+      const e = open.get(p.requestId)
+      if (e) {
+        e.status = p.response.status
+        if (p.type) e.type = p.type
+      }
+    } else if (method === 'Network.loadingFinished' || method === 'Network.loadingFailed') {
+      const e = open.get(p.requestId)
+      if (!e) return
+      finish(e, p.timestamp)
+      if (method === 'Network.loadingFinished') e.size = p.encodedDataLength
+      // A response the page never read (fetch(...).then(r => r.status)) ends as canceled: its status is the answer
+      else if (!(p.canceled && e.status)) e.error = p.canceled ? 'canceled' : (p.blockedReason ?? p.errorText)
+      if (ASSET_TYPES.has(e.type) || NOISE.test(`${e.url} ${e.error ?? ''}`)) return
+      if ((e.status ?? 0) >= 400 && !e.error) {
+        pushLog('error', `[net ${hostOf(e.url)}] #${e.id} ${e.method} ${e.status} ${shortUrl(e.url)}`)
+        // Keep the error body now: the protocol evicts it once the page moves on
+        responseBody(wc, e)
+          .then((b) => (e.body = b.slice(0, 4000)))
+          .catch(() => {})
+      } else if (e.error && e.error !== 'canceled' && e.type !== 'Document') {
+        // Failed documents are already reported by did-fail-load
+        pushLog('error', `[net ${hostOf(e.url)}] #${e.id} ${e.method} ${shortUrl(e.url)}: ${e.error}`)
+      }
+    }
   })
+  // Sent before the tab's loadURL, so its document request is recorded; subresources of that very
+  // first parse can still slip past while the new renderer attaches (a reload records everything)
+  await cdp(wc, 'Network.enable')
+}
+
+function shortUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const path = u.pathname + u.search
+    return path.length > 100 ? path.slice(0, 97) + '…' : path
+  } catch {
+    return url.slice(0, 100)
+  }
+}
+
+function formatSize(n?: number): string {
+  if (n === undefined) return ''
+  return n < 1024 ? `${n}B` : n < 1024 * 1024 ? `${Math.round(n / 1024)}kB` : `${(n / 1024 / 1024).toFixed(1)}MB`
+}
+
+/** Compact request log for the agent: API calls and documents by default, one line each */
+async function networkCommand(wc: WebContents, p: Record<string, unknown>): Promise<string> {
+  await trackNetwork(wc)
+  const list = net.get(wc) ?? []
+  if (p.body !== undefined) {
+    const e = list.find((x) => x.id === Number(p.body))
+    if (!e) throw new Error(`No request #${p.body} in this tab (buffer keeps the last ${NET_LIMIT})`)
+    let body = e.body
+    if (body === undefined && e.ms !== undefined && !e.error) body = await responseBody(wc, e).catch(() => '[body no longer available]')
+    const lines = [`#${e.id} ${e.method} ${e.status ?? e.error ?? 'pending'} ${e.url}`, `type: ${e.type}${e.ms !== undefined ? `, ${e.ms}ms` : ''}${e.size ? `, ${formatSize(e.size)}` : ''}`]
+    if (e.postData) lines.push(`request body:\n${scrub(e.postData).slice(0, 2000)}`)
+    if (body !== undefined) lines.push(`response body:\n${scrub(body).slice(0, Number(p.limit ?? 4000))}`)
+    return lines.join('\n')
+  }
+  const filter = p.filter ? String(p.filter).toLowerCase() : null
+  const rows = list.filter(
+    (e) =>
+      (p.all || !ASSET_TYPES.has(e.type)) &&
+      (p.all || !NOISE.test(e.url)) &&
+      (!p.failed || (e.status ?? 0) >= 400 || (!!e.error && e.error !== 'canceled')) &&
+      (!filter || `${e.method} ${e.url}`.toLowerCase().includes(filter))
+  )
+  const out = rows.slice(-Number(p.limit ?? 30)).map((e) => {
+    const state = e.error ? `✖ ${e.error}` : e.ms === undefined ? 'pending' : String(e.status ?? '')
+    const meta = [e.type.toLowerCase(), e.ms !== undefined ? `${e.ms}ms` : '', formatSize(e.size)].filter(Boolean).join(' ')
+    return `#${e.id} ${e.at} ${e.method} ${state} ${hostOf(e.url)}${shortUrl(e.url)}  ${meta}`
+  })
+  if (p.clear) list.length = 0
+  if (!out.length) return rows.length || !list.length ? 'No requests recorded yet' : 'No requests match'
+  const hidden = rows.length - out.length
+  return (hidden > 0 ? `… ${hidden} earlier (--limit)\n` : '') + out.join('\n')
 }
 
 /** Page settled: no new requests for `quietMs` and no DOM changes for 300 ms */
@@ -835,6 +980,12 @@ async function run(ctx: ControlContext, method: string, p: Record<string, unknow
       writeFileSync(path, (await wc().capturePage()).toPNG())
       return path
     }
+    case 'network':
+    {
+      const page = ctx.target((p.target as Target) ?? 'page')
+      if (!page) throw new Error('No active tab')
+      return await networkCommand(page, p)
+    }
     case 'logs': {
       const out = logs.slice(-Number(p.limit ?? 50)).map((l) => l.line)
       if (p.clear) {
@@ -844,7 +995,7 @@ async function run(ctx: ControlContext, method: string, p: Record<string, unknow
       return out.join('\n')
     }
     default:
-      throw new Error('Metody: state, status, action, menu, open, goto, tree, snapshot, text, extract, eval, wait, click, hover, fill, mouse, type, key, screenshot, logs, batch')
+      throw new Error('Metody: state, status, action, menu, open, goto, tree, snapshot, text, extract, eval, wait, click, hover, fill, mouse, type, key, screenshot, logs, network, cdp, batch')
   }
 }
 

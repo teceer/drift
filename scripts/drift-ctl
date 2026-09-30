@@ -47,6 +47,12 @@ target: sidebar (domyślnie) | page | find
   text [target]                 innerText widoku
   screenshot [target] [ścieżka] zrzut PNG (tylko gdy naprawdę potrzebny)
   logs [--clear]                logi konsoli sidebara i paska wyszukiwania
+  network [target]              ostatnie żądania karty (domyślnie page): API i dokumenty,
+                                z metodą, statusem, czasem i rozmiarem; #id do --body
+                                --failed tylko błędy (≥400, zerwane); --filter <fragment url>
+                                --all także obrazki/CSS/JS; --limit N (30); --clear
+                                --body <id> szczegóły: treść żądania i odpowiedzi
+                                (hasła, tokeny i wartości z 1Password zamaskowane)
   cdp <target> <Metoda> [json]  surowe wywołanie DevTools Protocol (diagnostyka)
   run [plik]                    wykonaj skrypt (jedna komenda na linię, # komentarz)
                                 w JEDNYM zapytaniu; stop na pierwszym błędzie
@@ -56,8 +62,8 @@ target: sidebar (domyślnie) | page | find
 Komendy zmieniające stan same raportują: zmiany statusu (Δ), co trafił klik (→)
 i nowe błędy (✖). Restart Drifta między komendami jest sygnalizowany (⚠).`
 
-const BOOL_FLAGS = new Set(['right', 'double', 'clear', 'all', 'json', 'force', 'new'])
-const VALUE_FLAGS = new Set(['sel', 'mod', 'timeout', 'filter', 'within', 'near', 'nth', 'fail', 'as', 'limit', 'secret'])
+const BOOL_FLAGS = new Set(['right', 'double', 'clear', 'all', 'json', 'force', 'new', 'failed'])
+const VALUE_FLAGS = new Set(['sel', 'mod', 'timeout', 'filter', 'within', 'near', 'nth', 'fail', 'as', 'limit', 'secret', 'body'])
 const TARGETS = ['sidebar', 'page', 'find']
 const MUTATING = new Set(['click', 'type', 'key', 'menu', 'action', 'hover', 'mouse', 'fill', 'open', 'goto'])
 
@@ -183,6 +189,10 @@ function buildRequest({ cmd, rest, flags }) {
     }
     case 'logs':
       return { method: 'logs', params: { clear: !!flags.clear } }
+    case 'network': {
+      const target = TARGETS.includes(r[0]) ? r.shift() : 'page'
+      return { method: 'network', params: { target, failed: !!flags.failed, all: !!flags.all, clear: !!flags.clear, filter: flags.filter, limit: flags.limit, body: flags.body } }
+    }
     case 'cdp': {
       const target = takeTarget()
       return { method: 'cdp', params: { target, cmd: r[0], args: r[1] ? JSON.parse(r.slice(1).join(' ')) : {} } }

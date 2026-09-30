@@ -41,7 +41,11 @@ EOF
 ```
 
 Each state-changing step reports on its own: `Δ` status change, `→ hit` the element that
-actually received the click, `≈` approximate match, `✖` new page errors, `⚠` Drift restart.
+actually received the click, `≈` approximate match, `✖` new page errors (including failed
+API calls, e.g. `#12 POST 500 /api/save`), `⚠` Drift restart.
+
+A click "worked" but nothing got saved? Check the requests instead of guessing from the UI:
+`network --failed`, then `network --body 12` for the request and response bodies.
 An obscured/invisible target is **blocked** (don't `--force` without understanding why).
 
 ## Selectors `<sel>`
@@ -79,6 +83,8 @@ click page button "Select note" --near "text:Drift test" --all
 | `extract page /regex/ [--limit N] --as x` | data from the page → variable in `run` |
 | `eval page "<js>" [--as x]` | last resort (frames, unusual widgets) |
 | `menu "<item>"` / `action <ipc> [args]` | app menu / Drift actions (`new-tab`, `navigate`, `switch-workspace`, `close-item`, `toggle-compact`…) |
+| `network [--failed] [--filter X] [--all] [--limit N]` | the tab's recent requests (API calls and documents; `--all` adds assets): method, status, time, size, `#id` |
+| `network --body <id>` | request and response body (passwords, tokens and 1Password values masked); also a cheap way to read an app's JSON instead of its UI |
 | `text page`, `logs`, `cdp <target> <Method> [json]` | page text, logs, raw DevTools Protocol |
 | `secrets <phrase>` | 1Password entries (metadata only) |
 

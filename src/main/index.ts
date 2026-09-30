@@ -3,7 +3,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import type { ChromeMode, DropTarget, ItemId, Snapshot, Workspace } from '@shared/types'
 import { arcAvailable, copyStorage, importCookies, importHistory, importSidebar } from './arc-import'
-import { captureConsole, capturePageErrors, startControl, type Status } from './control'
+import { captureConsole, capturePageErrors, startControl, trackNetwork, type Status } from './control'
 import { buildMenu } from './menu'
 import { saveStateNow, statePath, Store } from './store'
 import { TabManager } from './tabs'
@@ -29,6 +29,8 @@ async function acquireInstanceLock(): Promise<boolean> {
   }
   return true
 }
+
+const controlEnabled = (): boolean => !app.isPackaged || process.argv.includes('--control')
 
 // Watchers and scripts stop us with SIGTERM; quit properly so state gets flushed
 process.on('SIGTERM', () => app.quit())
@@ -674,6 +676,9 @@ function createWindow(): void {
     },
     onFound: (result) => {
       findView?.webContents.send('found', { active: result.activeMatchOrdinal, total: result.matches })
+    },
+    beforeLoad: (wc) => {
+      if (controlEnabled()) trackNetwork(wc).catch(() => {})
     }
   })
 
@@ -854,7 +859,7 @@ app.whenReady().then(async () => {
   }
   registerIpc()
   createWindow()
-  if (!app.isPackaged || process.argv.includes('--control')) {
+  if (controlEnabled()) {
     // Tab views: errors only (never regular page console output)
     app.on('web-contents-created', (_e, wc) => {
       setImmediate(() => {
